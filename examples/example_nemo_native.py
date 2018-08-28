@@ -21,27 +21,33 @@ o = OpenOil(loglevel=0)  # Set loglevel to 0 for debug information
 #reader_nemo = reader_NEMO_native.Reader(o.test_data_folder() +
 #    'Dec2009_GulfMexico_nemo_singlefileTUV/gulfmexico-gridT.nc')
 
-reader_glorys = reader_NEMO_native.Reader('http://chaman.cicese.mx/thredds/dodsC/glorys2v4/gridtuv') 
+#reader_glorys = reader_NEMO_native.Reader('http://chaman.cicese.mx/thredds/dodsC/glorys2v4/gridtuv') 
+# reader_nemo = reader_NEMO_native.Reader('http://dataserver.cigom.org/thredds/dodsC/linea3/phy/nemo-agr02-physics-2007-2011/gridTuvw')
 
 #reader_nemo = reader_NEMO_native.Reader('https://sener:sener2016@cic-pem.cicese.mx/thredds/dodsC/hidrocarburos/linea3/climatologias/nemo-golfo-36',
 #                                         custom_var_mapping={'vozocrtx_X' : 'x_sea_water_velocity', 'vomecrty_Y' : 'y_sea_water_velocity'})
 
+reader_nemo = reader_NEMO_native.Reader(o.test_data_folder() +
+                                        '01Jan2006_GulfofMexico_z_3d/NATL3-JREF2.3_y2006m01_gridT.nc')
+
 # Landmask (Basemap)
-# reader_basemap = reader_basemap_landmask.Reader(
-#                     llcrnrlon=-98.40654, llcrnrlat=14.18613,
-#                     urcrnrlon=-78.57984, urcrnrlat=30.70805, resolution='i')
+#reader_basemap = reader_basemap_landmask.Reader(
+#                     llcrnrlon=-98.19, llcrnrlat=17.51,
+#                     urcrnrlon=-78.86, urcrnrlat=30.50, resolution='i')
 
 # Add readers, ..
 #o.add_reader([reader_basemap, reader_nemo, reader_winds])
 #o.add_reader([reader_basemap, reader_nemo])
+o.add_reader([reader_nemo])
 #o.add_reader([reader_basemap, reader_glorys])
-o.add_reader([reader_glorys])
+#o.add_reader([reader_glorys])
+#o.set_config('general:basemap_resolution', 'c')
 
-simulation_days=31
+simulation_days=10
 
 # Particulas perdido area 
 lon = -95.64; lat = 24.67  
-starttime = datetime(2009, 12, 1, 12)  
+starttime = datetime(2006, 1, 1)  
 time = [starttime, starttime + timedelta(hours=24*simulation_days)]
 o.seed_elements(lon, lat, radius=10, number=2000, time=time, z=-0.50576001)  # El Valor de z es importante pues por default usa 0 y nemo su primer valor de prof es -0.50576001
 
@@ -53,5 +59,6 @@ o.run(duration=timedelta(days=simulation_days),
 
 # Print and plot results
 o.plot(linecolor="age_seconds")
-o.plot(background=["x_sea_water_velocity","y_sea_water_velocity"])
-o.animation(background=["x_sea_water_velocity","y_sea_water_velocity"])
+o.animation() 
+o.plot(background=["x_sea_water_velocity","y_sea_water_velocity"], skip=6)
+#o.animation(background=["x_sea_water_velocity","y_sea_water_velocity"])
