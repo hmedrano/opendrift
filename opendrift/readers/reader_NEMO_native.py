@@ -29,15 +29,13 @@ from opendrift.readers.basereader import BaseReader, vector_pairs_xy
 
 class Reader(BaseReader):
 
-    def __init__(self, filename=None, name=None, gridfile=None):
+    def __init__(self, filename=None, name=None, gridfile=None, custom_var_mapping=None):
 
         if filename is None:
             raise ValueError('Need filename as argument to constructor')
 
         # Map ROMS variable names to CF standard_name
-        self.NEMO_variable_mapping = {
-            # Removing (temporarily) land_binary_mask from ROMS-variables,
-            # as this leads to trouble with linearNDFast interpolation            
+        self.NEMO_variable_mapping = {        
             'sossheig': 'sea_surface_height', # sea_surface_above_geoid
             'vozocrtx': 'x_sea_water_velocity',
             'vomecrty': 'y_sea_water_velocity',
@@ -46,6 +44,14 @@ class Reader(BaseReader):
             'vosaline': 'sea_water_salinity',            
             'utau': 'surface_downward_x_stress',
             'vtau': 'surface_downward_y_stress', }
+            
+        if custom_var_mapping is not None:
+            for var_name in list(self.NEMO_variable_mapping.keys()):                
+                for cvar_name in custom_var_mapping.keys():                
+                    if custom_var_mapping[cvar_name] == self.NEMO_variable_mapping[var_name]:
+                        self.NEMO_variable_mapping.pop(var_name)
+                        break
+            self.NEMO_variable_mapping.update(custom_var_mapping)     
 
         # # z-levels to which sigma-layers may be interpolated
         # self.zlevels = [
@@ -72,15 +78,19 @@ class Reader(BaseReader):
         except Exception as e:
             raise ValueError(e)
 
-        if 'deptht' not in self.Dataset.variables:
+        if 'deptht' not in self.Dataset.variables or 'depth' not in self.Dataset.variables:
             dimensions = 2
         else:
             dimensions = 3
 
-        if dimensions == 3:            
-            # Read depth values
+        if dimensions == 3:    
 
-            varz = self.Dataset.variables['deptht']
+            # Read depth values
+            try:
+                varz = self.Dataset.variables['deptht']
+            except:
+                varz = self.Dataset.variables['depth']
+
             if 'positive' not in varz.ncattrs() or \
                     varz.__dict__['positive'] == 'up':
                 self.z = varz[:]
@@ -354,7 +364,7 @@ class Reader(BaseReader):
         for par in requested_variables:
             varname = [name for name, cf in
                        self.NEMO_variable_mapping.items() if cf == par]
-            var = self.Dataset.variables[varname[0]]            
+            var = self.Dataset.variables[varname[0]]                 
             #var = self.Dataset.variables[self.NEMO_variable_mapping[par]]
 
             # Automatic masking may lead to trouble for ROMS files
@@ -372,7 +382,7 @@ class Reader(BaseReader):
                     variables[par] = var[indy, indx]
                 elif var.ndim == 3:
                     variables[par] = var[indxTime, indy, indx]
-                elif var.ndim == 4:
+                elif var.ndim == 4:                    
                     variables[par] = var[indxTime, indz, indy, indx]
                 else:
                     raise Exception('Wrong dimension of variable: ' +
