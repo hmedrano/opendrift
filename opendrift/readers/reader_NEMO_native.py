@@ -374,6 +374,14 @@ class Reader(BaseReader):
                 FillValue = getattr(var, '_FillValue')
             except:
                 FillValue = None            
+            try:
+                scale = getattr(var, 'scale_factor')
+            except:
+                scale = 1
+            try:
+                offset = getattr(var, 'add_offset')
+            except:
+                offset = 0                
 
             continous = True
             ensemble_dim = None
@@ -401,9 +409,9 @@ class Reader(BaseReader):
                     right = var[indxTime, indz, indy, indx_right]
                     variables[par] = np.ma.concatenate((left, right), 2)
 
-            # Manual scaling, offsetting and masking due to issue with ROMS files
-            logging.debug('Manually masking %s, FillValue %s ' % 
-                (par, FillValue))
+            # Manual scaling, offsetting and masking due to issue with NEMO files
+            logging.debug('Manually masking %s, FillValue %s, scale %s, offset %s' % 
+                (par, FillValue, scale, offset))
             if FillValue is not None:
                 if var.dtype != FillValue.dtype:
                     mask = variables[par] == 0
@@ -413,7 +421,7 @@ class Reader(BaseReader):
                 else:
                     logging.warning('Masking ' + str(FillValue))
                     mask = variables[par] == FillValue   
-
+            variables[par] = variables[par]*scale + offset
             if FillValue is not None:
                 variables[par][mask] = np.nan                 
 
