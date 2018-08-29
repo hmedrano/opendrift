@@ -28,7 +28,7 @@ o = OpenOil(loglevel=0)  # Set loglevel to 0 for debug information
 #                                         custom_var_mapping={'vozocrtx_X' : 'x_sea_water_velocity', 'vomecrty_Y' : 'y_sea_water_velocity'})
 
 reader_nemo = reader_NEMO_native.Reader(o.test_data_folder() +
-                                        '01Jan2006_GulfofMexico_z_3d/NATL3-JREF2.3_y2006m01_gridT.nc')
+                                        '01Jan2006_GulfofMexico_z_3d/needed.nc')
 
 # Landmask (Basemap)
 #reader_basemap = reader_basemap_landmask.Reader(
@@ -59,6 +59,6 @@ o.run(duration=timedelta(days=simulation_days),
 
 # Print and plot results
 o.plot(linecolor="age_seconds")
-o.animation() 
-o.plot(background=["x_sea_water_velocity","y_sea_water_velocity"], skip=6)
+#o.animation() 
+o.plot(background=["x_sea_water_velocity","y_sea_water_velocity"])
 #o.animation(background=["x_sea_water_velocity","y_sea_water_velocity"])
