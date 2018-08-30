@@ -187,8 +187,8 @@ class Reader(BaseReader):
             try:
                 offset = getattr(var, 'add_offset')
             except:
-                offset = 0                
-
+                offset = 0    
+            
             continous = True # Can the request not be continous?
             ensemble_dim = None
             if continous is True:
@@ -280,7 +280,6 @@ class Reader(BaseReader):
         # Masking NaN
         #for var in requested_variables:
         #    variables[var] = np.ma.masked_invalid(variables[var])
-
-        #print(variables.keys()) ; 
+        
         return variables
 
