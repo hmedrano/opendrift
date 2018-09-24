@@ -292,7 +292,19 @@ class OpenDriftSimulation(PhysicsMethods):
                 ds = ds[s]
         valid = self.configobj.validate(validate.Validator())
         if self.configobj.validate(validate.Validator()) is not True:
-            raise ValueError('Wrong configuration:\n\t%s = %s' % (s, ds[s]))
+            if hasattr(self, 'oil_types') or hasattr(self, 'leewayprop'):
+                # Provide some suggestion if config is very long list (e.g. oiltype/leewaycategory)
+                if hasattr(self, 'oil_types'):
+                    elements = self.oiltypes
+                elif hasattr(self, 'leewayprop'):
+                    elements = [self.leewayprop[la]['OBJKEY'] for la in self.leewayprop]
+                import difflib
+                matches = difflib.get_close_matches(value, elements)
+                if len(matches) > 0:
+                    suggestion = '\nDid you mean any of these?\n%s' % str(matches)
+                else:
+                    suggestion = ''
+            raise ValueError('Wrong configuration:\n\t%s = %s%s' % (s, ds[s], suggestion))
 
     def _config_hash_to_dict(self, hashstring):
         """Return configobj-dict from section:section:key format"""
@@ -871,6 +883,7 @@ class OpenDriftSimulation(PhysicsMethods):
                                  reader_name.replace(':', '<colon>'))
                 reader = self.readers[reader_name]
                 if reader.is_lazy:
+                    logging.warning('Reader is lazy, should not happen')
                     import sys; sys.exit('Should not happen')
                 if not reader.covers_time(time):
                     logging.debug('\tOutside time coverage of reader.')
@@ -977,8 +990,10 @@ class OpenDriftSimulation(PhysicsMethods):
                     logging.debug('Data missing for %i elements.' %
                                   (len(missing_indices)))
                     if len(self._lazy_readers()) > 0:
-                        import sys;
-                        sys.exit('Lazy readers available, should be initialised here')
+                        if self._initialise_next_lazy_reader() is not None:
+                            logging.warning('Missing variables: calling get_environment recursively')
+                            return self.get_environment(variables,
+                                time, lon, lat, z, profiles)
 
         logging.debug('---------------------------------------')
         logging.debug('Finished processing all variable groups')
@@ -1399,7 +1414,8 @@ class OpenDriftSimulation(PhysicsMethods):
             if 'z' in kwargs and isinstance(kwargs['z'], basestring) \
                     and kwargs['z'][0:8] == 'seafloor':
                 # We need to fetch seafloor depth from reader
-                if 'sea_floor_depth_below_sea_level' not in self.priority_list:
+                if ('sea_floor_depth_below_sea_level' not in self.priority_list
+                    ) and len(self._lazy_readers()) == 0:
                     raise ValueError('A reader providing the variable '
                                      'sea_floor_depth_below_sea_level must be '
                                      'added before seeding elements at seafloor.')
@@ -1407,6 +1423,8 @@ class OpenDriftSimulation(PhysicsMethods):
                     t = time[0]
                 else:
                     t = time
+                if not hasattr(self, 'time'):
+                    self.time = t
                 env, env_profiles, missing = \
                     self.get_environment(['sea_floor_depth_below_sea_level'],
                                          time=t, lon=lon, lat=lat,
@@ -1461,7 +1479,8 @@ class OpenDriftSimulation(PhysicsMethods):
                 and kwargs['z'][0:8] == 'seafloor':
             # We need to fetch seafloor depth from reader
             # Unfortunately, this is duplication of code above
-            if 'sea_floor_depth_below_sea_level' not in self.priority_list:
+            if ('sea_floor_depth_below_sea_level' not in self.priority_list
+                    ) and len(self._lazy_readers()) == 0:
                 raise ValueError('A reader providing the variable '
                                  'sea_floor_depth_below_sea_level must be '
                                  'added before seeding elements at seafloor.')
@@ -1469,6 +1488,8 @@ class OpenDriftSimulation(PhysicsMethods):
                 t = time[0]
             else:
                 t = time
+            if not hasattr(self, 'time'):
+                self.time = t
             env, env_profiles, missing = \
                 self.get_environment(['sea_floor_depth_below_sea_level'],
                                      t, kwargs['lon'], kwargs['lat'],
@@ -1745,6 +1766,9 @@ class OpenDriftSimulation(PhysicsMethods):
             reason_number
         logging.debug('%s elements scheduled for deactivation (%s)' %
                       (sum(indices), reason))
+        logging.debug('\t(z: %f to %f)' %
+            (self.elements.z[indices].min(),
+             self.elements.z[indices].max()))
 
     def remove_deactivated_elements(self):
         """Moving deactivated elements from self.elements
@@ -2849,7 +2873,7 @@ class OpenDriftSimulation(PhysicsMethods):
     def plot(self, background=None, buffer=.2, linecolor=None, filename=None,
              show=True, vmin=None, vmax=None, compare=None, cmap='jet',
              lvmin=None, lvmax=None, skip=2, scale=10, show_scalar=True,
-             contourlines=False, trajectory_dict=None, colorbar=True,
+             contourlines=False, trajectory_dict=None, colorbar=True, linewidth=1,
              surface_color=None, submerged_color=None, markersize=20,
              title='auto', legend=True, legend_loc='best', **kwargs):
         """Basic built-in plotting function intended for developing/debugging.
@@ -2897,10 +2921,10 @@ class OpenDriftSimulation(PhysicsMethods):
                             numleg = 2
                         legend = ['Simulation %d' % (i+1) for i in
                                   range(numleg)]
-                    map.plot(x.T[:,0], y.T[:,0], color='gray', alpha=alpha, label=legend[0])
-                    map.plot(x.T, y.T, color='gray', alpha=alpha, label='_nolegend_')
+                    map.plot(x.T[:,0], y.T[:,0], color='gray', alpha=alpha, label=legend[0], linewidth=linewidth)
+                    map.plot(x.T, y.T, color='gray', alpha=alpha, label='_nolegend_', linewidth=linewidth)
                 else:
-                    map.plot(x.T, y.T, color='gray', alpha=alpha)
+                    map.plot(x.T, y.T, color='gray', alpha=alpha, linewidth=linewidth)
             else:
                 # Color lines according to given parameter
                 try:
@@ -3006,8 +3030,8 @@ class OpenDriftSimulation(PhysicsMethods):
                     legstr = legend[i+1]
                 else:
                     legstr = None
-                map.plot(c['x_other'].T[:,0], c['y_other'].T[:,0], self.plot_comparison_colors[i] + '-', label=legstr)
-                map.plot(c['x_other'].T, c['y_other'].T, self.plot_comparison_colors[i] + '-', label='_nolegend_')
+                map.plot(c['x_other'].T[:,0], c['y_other'].T[:,0], self.plot_comparison_colors[i] + '-', label=legstr, linewidth=linewidth)
+                map.plot(c['x_other'].T, c['y_other'].T, self.plot_comparison_colors[i] + '-', label='_nolegend_', linewidth=linewidth)
                 map.scatter(c['x_other'][range(c['x_other'].shape[0]), c['index_of_last_other']],
                     c['y_other'][range(c['y_other'].shape[0]), c['index_of_last_other']],
                     s=markersize,
